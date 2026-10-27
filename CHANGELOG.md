@@ -2,6 +2,15 @@
 
 A summary of the work done in each branch, newest first.
 
+## `7-update-from-example-map-to-real-data` (2026-10-27)
+
+Switched from the Barcelona example map to real data in any city.
+
+- **Sample data removed:** deleted the 26 sample Barcelona places and 10 fake students (with their tips, saves and check-ins) from the shared database. Removed `supabase/seed.sql` and turned seeding off, so it can't come back. The project now holds only real entries from the team and beta users.
+- **Map remembers where you left it:** it reopens at the last place and zoom you viewed on that device. A first visit still opens on Barcelona.
+- **Clearer error:** "Couldn't load places" now suggests checking your connection instead of asking whether Supabase is running (a leftover from the local Docker setup)
+- README: removed sample-data mentions, stronger warning on `db reset --linked`, and a note that heat needs 3+ people per place, so expect mostly pins at first
+
 ## `1-create-a-heatmap` (2026-10-14 – 2026-10-27)
 
 Set up the project and built the first feature: a shared map with a popularity heatmap, using Barcelona as the pilot city.

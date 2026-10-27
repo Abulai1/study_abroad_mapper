@@ -1,6 +1,6 @@
-// Pilot city the map opens on. Change these to launch somewhere else.
-export const PILOT_CITY = {
-  name: "Barcelona",
+// Where the map opens on a first visit. After that it reopens where you left it
+// (see lib/lastView.ts).
+export const DEFAULT_VIEW = {
   latitude: 41.3874,
   longitude: 2.1686,
   zoom: 12.5,

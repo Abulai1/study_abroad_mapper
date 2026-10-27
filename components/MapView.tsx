@@ -12,7 +12,8 @@ import Map, {
   type MapRef,
 } from "react-map-gl/maplibre";
 import type { FeatureCollection, Point } from "geojson";
-import { MAP_STYLE_URL, PILOT_CITY, PIN_MIN_ZOOM } from "@/lib/config";
+import { DEFAULT_VIEW, MAP_STYLE_URL, PIN_MIN_ZOOM } from "@/lib/config";
+import { loadLastView, saveLastView } from "@/lib/lastView";
 import type { MapPlace } from "@/lib/types";
 
 // MapLibre can't find its worker once the app is bundled, so we serve a copy
@@ -42,6 +43,8 @@ export default function MapView({
   onViewChange,
 }: Props) {
   const [cursor, setCursor] = useState("");
+  // Reopen where the map was last left on this device.
+  const [initialView] = useState(() => loadLastView() ?? DEFAULT_VIEW);
 
   // Turn our places into GeoJSON, the format MapLibre sources expect.
   const data = useMemo<FeatureCollection<Point>>(
@@ -61,6 +64,7 @@ export default function MapView({
     if (!map) return;
     const b = map.getBounds();
     const c = map.getCenter();
+    saveLastView({ latitude: c.lat, longitude: c.lng, zoom: map.getZoom() });
     onViewChange({
       bounds: { minLng: b.getWest(), minLat: b.getSouth(), maxLng: b.getEast(), maxLat: b.getNorth() },
       center: { lat: c.lat, lng: c.lng },
@@ -75,11 +79,7 @@ export default function MapView({
   return (
     <Map
       ref={mapRef}
-      initialViewState={{
-        latitude: PILOT_CITY.latitude,
-        longitude: PILOT_CITY.longitude,
-        zoom: PILOT_CITY.zoom,
-      }}
+      initialViewState={initialView}
       mapStyle={MAP_STYLE_URL}
       style={{ width: "100%", height: "100%" }}
       interactiveLayerIds={["place-pins"]}

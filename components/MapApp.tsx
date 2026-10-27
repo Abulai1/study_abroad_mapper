@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapRef } from "react-map-gl/maplibre";
-import { PILOT_CITY } from "@/lib/config";
+import { DEFAULT_VIEW } from "@/lib/config";
 import { createClient } from "@/lib/supabase/client";
 import type { MapPlace, SavedPlace } from "@/lib/types";
 import type { ViewInfo } from "./MapView";
@@ -32,7 +32,7 @@ export default function MapApp({ userId, userEmail }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showHeat, setShowHeat] = useState(true);
   const [savedOpen, setSavedOpen] = useState(false);
-  const [center, setCenter] = useState({ lat: PILOT_CITY.latitude, lng: PILOT_CITY.longitude });
+  const [center, setCenter] = useState({ lat: DEFAULT_VIEW.latitude, lng: DEFAULT_VIEW.longitude });
   const [mapError, setMapError] = useState("");
 
   const savedIds = useMemo(() => new Set(saves.map((s) => s.place_id)), [saves]);
@@ -51,7 +51,7 @@ export default function MapApp({ userId, userEmail }: Props) {
     });
     if (request !== requestRef.current) return; // a newer request already started
     if (error) {
-      setMapError("Couldn't load places. Is Supabase running?");
+      setMapError("Couldn't load places. Check your connection and try again.");
       return;
     }
     setMapError("");
