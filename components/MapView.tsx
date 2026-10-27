@@ -1,6 +1,7 @@
 "use client";
 
 import "maplibre-gl/dist/maplibre-gl.css";
+import { setWorkerUrl } from "maplibre-gl";
 import { useMemo, useState } from "react";
 import Map, {
   GeolocateControl,
@@ -14,7 +15,11 @@ import type { FeatureCollection, Point } from "geojson";
 import { MAP_STYLE_URL, PILOT_CITY, PIN_MIN_ZOOM } from "@/lib/config";
 import type { MapPlace } from "@/lib/types";
 
-export type Bounds = { minLng: number; minLat: number; maxLng: number; maxLat: number };
+// MapLibre can't find its worker once the app is bundled, so we serve a copy
+// from public/ (see the "copy-map-worker" script in package.json).
+setWorkerUrl("/maplibre-gl-worker.mjs");
+
+export type Bounds ={ minLng: number; minLat: number; maxLng: number; maxLat: number };
 export type ViewInfo = { bounds: Bounds; center: { lat: number; lng: number } };
 
 type Props = {

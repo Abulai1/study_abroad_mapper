@@ -2,13 +2,25 @@
 
 A summary of the work done in each branch, newest first.
 
-## `1-create-a-heatmap` (2026-10-14)
+## `1-create-a-heatmap` (2026-10-14 – 2026-10-27)
 
 Set up the project and built the first feature: a shared map with a popularity heatmap, using Barcelona as the pilot city.
 
+### Update (2026-10-27)
+
+**Shared hosted database**
+- Moved Supabase from local Docker to one hosted supabase.com project, used as the team's shared dev/test environment. Everyone sees the same places, tips and accounts, and nobody needs Docker.
+- Loaded the tables, security rules and sample Barcelona data into the hosted project
+- README now explains how to connect, how to change the database safely as a team, and what to do when the free project pauses
+
+**Fixes**
+- The map was blank (no streets, no heatmap) because MapLibre couldn't load its background worker file once bundled. The worker is now copied into `public/` on `npm run dev` / `npm run build`.
+
+### Initial build (2026-10-14)
+
 **Project setup**
 - Next.js + TypeScript + Tailwind web app
-- Supabase for the database, sign-in, and security rules (runs locally with Docker)
+- Supabase for the database, sign-in, and security rules
 - MapLibre with free OpenFreeMap tiles for the map, Photon for place search
 
 **Features**
@@ -24,6 +36,6 @@ Set up the project and built the first feature: a shared map with a popularity h
 - Security rules: places and tips are public, while saves, notes, and check-ins are private to their owner
 - Sample data: 26 real Barcelona places with fake student activity and tips
 
-**Known issues**
+### Known issues
 - The free public Photon search server is currently slow (30–40 seconds per search)
-- The full browser click-through (map display, sign-in via email link) still needs a manual test
+- The map display has been checked in a browser, but the rest of the click-through (sign-in via email link, saving, check-ins, tips, reporting, search) still needs a manual test
