@@ -1,17 +1,18 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapRef } from "react-map-gl/maplibre";
 import { DEFAULT_VIEW } from "@/lib/config";
 import { createClient } from "@/lib/supabase/client";
 import type { MapPlace, SavedPlace } from "@/lib/types";
+import { hasSeenWelcome, markWelcomeSeen } from "@/lib/welcome";
 import type { ViewInfo } from "./MapView";
 import PlaceDrawer from "./PlaceDrawer";
 import SavedPanel from "./SavedPanel";
 import SearchBox from "./SearchBox";
+import WelcomeModal from "./WelcomeModal";
 
 // MapLibre needs the browser, so skip it during server rendering.
 const MapView = dynamic(() => import("./MapView"), {
@@ -34,6 +35,23 @@ export default function MapApp({ userId, userEmail }: Props) {
   const [savedOpen, setSavedOpen] = useState(false);
   const [center, setCenter] = useState({ lat: DEFAULT_VIEW.latitude, lng: DEFAULT_VIEW.longitude });
   const [mapError, setMapError] = useState("");
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+
+  // Welcome signed-out visitors, once per device. Checked after mount because
+  // localStorage doesn't exist during server rendering.
+  useEffect(() => {
+    if (userId) {
+      markWelcomeSeen();
+      setWelcomeOpen(false);
+    } else if (!hasSeenWelcome()) {
+      setWelcomeOpen(true);
+    }
+  }, [userId]);
+
+  const closeWelcome = useCallback(() => {
+    markWelcomeSeen();
+    setWelcomeOpen(false);
+  }, []);
 
   const savedIds = useMemo(() => new Set(saves.map((s) => s.place_id)), [saves]);
 
@@ -121,12 +139,12 @@ export default function MapApp({ userId, userEmail }: Props) {
               Sign out
             </button>
           ) : (
-            <Link
-              href="/login"
+            <button
+              onClick={() => setWelcomeOpen(true)}
               className="block rounded-xl bg-indigo-600 px-3 py-3 text-sm font-medium text-white shadow-lg hover:bg-indigo-700"
             >
               Sign in
-            </Link>
+            </button>
           )}
         </div>
       </div>
@@ -174,6 +192,8 @@ export default function MapApp({ userId, userEmail }: Props) {
           }}
         />
       )}
+
+      {welcomeOpen && !userId && <WelcomeModal onClose={closeWelcome} />}
     </div>
   );
 }

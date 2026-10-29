@@ -2,6 +2,15 @@
 
 A summary of the work done in each branch, newest first.
 
+## `8-create-a-landing-page` (2026-10-27 – 2026-10-29)
+
+Added a welcome pop-up so new visitors know what the site is and are prompted to create an account, and switched sign-in to email + password.
+
+- **Welcome pop-up:** signed-out visitors see a pop-up over the map that explains the site (a shared map of where students abroad go, with tips) and lists what you can do. You can create an account or sign in right in the pop-up, or choose "Just look around" to browse the map and tips without an account. Saving, check-ins, tips and adding places still need an account.
+- **Shown once per device:** after it's closed, or once you've signed in, it stays closed on that device (also after signing out). The "Sign in" button in the corner reopens it.
+- **Email + password sign-in:** replaced emailed sign-in links with email + password ("Sign in" / "Create account"), in one form shared by the pop-up and the `/login` page. Supabase's built-in email service (about 2 emails/hour, team members only) was blocking sign-ins, and university link scanners may have been using up links. "Confirm email" is off for the beta, so no emails are sent. Password resets are done in the dashboard for now.
+- **Clearer sign-in errors:** wrong password, existing account, too-short password and too many attempts now get plain-English messages. Failed emailed links show the real reason.
+
 ## `7-update-from-example-map-to-real-data` (2026-10-27)
 
 Switched from the Barcelona example map to real data in any city.
