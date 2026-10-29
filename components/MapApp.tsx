@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapRef } from "react-map-gl/maplibre";
 import { DEFAULT_VIEW } from "@/lib/config";
 import { createClient } from "@/lib/supabase/client";
-import type { MapPlace, SavedPlace } from "@/lib/types";
+import type { MapPlace, SavedPlace, SearchResult, Selection } from "@/lib/types";
 import { hasSeenWelcome, markWelcomeSeen } from "@/lib/welcome";
 import type { ViewInfo } from "./MapView";
 import PlaceDrawer from "./PlaceDrawer";
@@ -27,10 +27,11 @@ export default function MapApp({ userId, userEmail }: Props) {
   const mapRef = useRef<MapRef | null>(null);
   const viewRef = useRef<ViewInfo | null>(null);
   const requestRef = useRef(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [places, setPlaces] = useState<MapPlace[]>([]);
   const [saves, setSaves] = useState<SavedPlace[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [showHeat, setShowHeat] = useState(true);
   const [savedOpen, setSavedOpen] = useState(false);
   const [center, setCenter] = useState({ lat: DEFAULT_VIEW.latitude, lng: DEFAULT_VIEW.longitude });
@@ -96,12 +97,37 @@ export default function MapApp({ userId, userEmail }: Props) {
     loadPlaces();
   }
 
-  function openPlace(place: { id: string; lat: number; lng: number }) {
-    setSelectedId(place.id);
-    setSavedOpen(false);
+  function flyTo(place: { lat: number; lng: number }) {
     const map = mapRef.current;
     // Flying triggers a "move end", which reloads places so new ones appear.
     map?.flyTo({ center: [place.lng, place.lat], zoom: Math.max(map.getZoom(), 15.5) });
+  }
+
+  function openPlace(place: { id: string; lat: number; lng: number }) {
+    setSelection({ id: place.id });
+    setSavedOpen(false);
+    flyTo(place);
+  }
+
+  // A place picked from search or the base map: open it by id if it's already on our map,
+  // otherwise as a candidate that gets added once someone saves it, checks in or tips.
+  async function openCandidate(result: SearchResult, existingId?: string) {
+    setSavedOpen(false);
+    flyTo(result);
+    let id = existingId;
+    if (!id) {
+      const { data } = await createClient().rpc("lookup_osm_places", {
+        osm_keys: [`${result.osmType}/${result.osmId}`],
+      });
+      id = (data as { id: string }[] | null)?.[0]?.id;
+    }
+    setSelection(id ? { id } : { candidate: result });
+  }
+
+  function addAPlace() {
+    setSelection(null);
+    setSavedOpen(false);
+    searchInputRef.current?.focus();
   }
 
   async function signOut() {
@@ -115,19 +141,20 @@ export default function MapApp({ userId, userEmail }: Props) {
         mapRef={mapRef}
         places={places}
         savedIds={savedIds}
-        selectedId={selectedId}
+        selection={selection}
         showHeat={showHeat}
         onSelect={(id) => {
-          setSelectedId(id);
+          setSelection(id ? { id } : null);
           if (id) setSavedOpen(false);
         }}
+        onPickCandidate={(c) => openCandidate(c)}
         onViewChange={handleViewChange}
       />
 
       {/* Top bar: search + account */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-2 p-3 md:p-4">
         <div className="pointer-events-auto w-full max-w-md">
-          <SearchBox near={center} signedIn={!!userId} onPick={openPlace} />
+          <SearchBox near={center} inputRef={searchInputRef} onPick={openCandidate} />
         </div>
         <div className="pointer-events-auto ml-auto shrink-0">
           {userId ? (
@@ -149,12 +176,20 @@ export default function MapApp({ userId, userEmail }: Props) {
         </div>
       </div>
 
-      {/* Bottom-left controls */}
-      <div className="absolute bottom-6 left-3 z-10 flex flex-col gap-2 md:left-4">
+      {/* Bottom-center controls, lifted on phones to clear the full-width map credits line. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-11 z-10 flex flex-col items-center gap-2 px-3 md:bottom-6">
         {mapError && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 shadow">{mapError}</p>
+          <p className="pointer-events-auto rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 shadow">
+            {mapError}
+          </p>
         )}
-        <div className="flex gap-2">
+        <div className="pointer-events-auto flex flex-wrap justify-center gap-2">
+          <button
+            onClick={addAPlace}
+            className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-indigo-700"
+          >
+            + Add a place
+          </button>
           <button
             onClick={() => setShowHeat((v) => !v)}
             className={`rounded-full px-4 py-2 text-sm font-medium shadow-lg ${
@@ -167,7 +202,7 @@ export default function MapApp({ userId, userEmail }: Props) {
             <button
               onClick={() => {
                 setSavedOpen((v) => !v);
-                setSelectedId(null);
+                setSelection(null);
               }}
               className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-lg"
             >
@@ -181,15 +216,18 @@ export default function MapApp({ userId, userEmail }: Props) {
         <SavedPanel saves={saves} onPick={openPlace} onClose={() => setSavedOpen(false)} />
       )}
 
-      {selectedId && (
+      {selection && (
         <PlaceDrawer
-          placeId={selectedId}
+          placeId={"id" in selection ? selection.id : undefined}
+          candidate={"candidate" in selection ? selection.candidate : undefined}
           userId={userId}
-          onClose={() => setSelectedId(null)}
+          onClose={() => setSelection(null)}
           onChanged={() => {
             loadPlaces();
             loadSaves();
           }}
+          onCreated={(id) => setSelection({ id })}
+          onSignIn={() => setWelcomeOpen(true)}
         />
       )}
 

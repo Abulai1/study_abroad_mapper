@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import {
+  addPlace,
   addTip,
   checkIn,
   deleteTip,
@@ -11,14 +11,21 @@ import {
   unsavePlace,
 } from "@/app/actions";
 import { createClient } from "@/lib/supabase/client";
-import type { ActionResult, Place, PlaceStats, Tip } from "@/lib/types";
+import type { ActionResult, Place, PlaceStats, SearchResult, Tip } from "@/lib/types";
 
 type Props = {
-  placeId: string;
+  /** A place already on our map… */
+  placeId?: string;
+  /** …or one picked from search / the base map that isn't on our map yet. */
+  candidate?: SearchResult;
   userId: string | null;
   onClose: () => void;
   /** Tell the map something changed (saves/check-ins affect pins and heat). */
   onChanged: () => void;
+  /** A candidate was just added to the map (by the first save, check-in or tip). */
+  onCreated: (id: string) => void;
+  /** Open the sign-in pop-up. */
+  onSignIn: () => void;
 };
 
 type Details = {
@@ -31,7 +38,15 @@ type Details = {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export default function PlaceDrawer({ placeId, userId, onClose, onChanged }: Props) {
+export default function PlaceDrawer({
+  placeId,
+  candidate,
+  userId,
+  onClose,
+  onChanged,
+  onCreated,
+  onSignIn,
+}: Props) {
   const [details, setDetails] = useState<Details | null>(null);
   const [loadError, setLoadError] = useState("");
   const [message, setMessage] = useState("");
@@ -40,6 +55,7 @@ export default function PlaceDrawer({ placeId, userId, onClose, onChanged }: Pro
   const [isPending, startTransition] = useTransition();
 
   const load = useCallback(async () => {
+    if (!placeId) return;
     const supabase = createClient();
     const [place, stats, tips, save, checkins] = await Promise.all([
       supabase.from("places").select("*").eq("id", placeId).single(),
@@ -77,25 +93,51 @@ export default function PlaceDrawer({ placeId, userId, onClose, onChanged }: Pro
     setLoadError("");
     setMessage("");
     setTipText("");
+    setNote("");
     load();
-  }, [load]);
+  }, [load, candidate]);
 
-  // Run a server action, show any error, then reload this drawer (and the map if needed).
-  function run(action: () => Promise<ActionResult>, opts: { affectsMap?: boolean; success?: string } = {}) {
+  // Run a server action on this place, show any error, then reload this drawer (and the map if
+  // needed). A candidate is added to the map first, so the action has a place to attach to.
+  function run(
+    action: (id: string) => Promise<ActionResult>,
+    opts: { affectsMap?: boolean; success?: string } = {},
+  ) {
     setMessage("");
     startTransition(async () => {
-      const res = await action();
+      let id = placeId;
+      if (!id && candidate) {
+        const added = await addPlace(candidate);
+        if (!added.ok) {
+          setMessage(added.error);
+          return;
+        }
+        id = added.data.id;
+      }
+      if (!id) return;
+
+      const res = await action(id);
       if (!res.ok) {
         setMessage(res.error);
         return;
       }
       if (opts.success) setMessage(opts.success);
+      if (id !== placeId) {
+        // The drawer reloads with the new id once the parent switches to it.
+        onCreated(id);
+        onChanged();
+        return;
+      }
       await load();
       if (opts.affectsMap) onChanged();
     });
   }
 
   const p = details?.place;
+  const name = p?.name ?? candidate?.name;
+  const subtitle = p ? [p.category, p.address] : [candidate?.category, candidate?.address];
+  const isNew = !placeId && !!candidate;
+  const ready = !!details || isNew;
   const saved = !!details?.save;
   const checkedInToday = details?.myCheckins.includes(today()) ?? false;
 
@@ -105,11 +147,9 @@ export default function PlaceDrawer({ placeId, userId, onClose, onChanged }: Pro
 
       <header className="flex items-start justify-between gap-3 px-5 pt-3 pb-2 md:pt-5">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-slate-900">{p?.name ?? "Loading…"}</h2>
-          {p && (
-            <p className="mt-0.5 text-sm text-slate-500">
-              {[p.category, p.address].filter(Boolean).join(" · ")}
-            </p>
+          <h2 className="text-xl font-semibold text-slate-900">{name ?? "Loading…"}</h2>
+          {subtitle.some(Boolean) && (
+            <p className="mt-0.5 text-sm text-slate-500">{subtitle.filter(Boolean).join(" · ")}</p>
           )}
         </div>
         <button
@@ -124,10 +164,12 @@ export default function PlaceDrawer({ placeId, userId, onClose, onChanged }: Pro
       <div className="flex-1 overflow-y-auto px-5 pb-6">
         {loadError && <p className="text-sm text-red-600">{loadError}</p>}
 
-        {details && (
+        {ready && (
           <>
             <p className="text-sm text-slate-600">
-              {details.stats && details.stats.people > 0 ? (
+              {isNew ? (
+                "New to the map. Save it or check in to add it for everyone."
+              ) : details?.stats && details.stats.people > 0 ? (
                 <>
                   🔥 <strong>{details.stats.people}</strong> students ·{" "}
                   {details.stats.savers} saves · {details.stats.visitors} have been
@@ -142,7 +184,7 @@ export default function PlaceDrawer({ placeId, userId, onClose, onChanged }: Pro
                 <button
                   disabled={isPending}
                   onClick={() =>
-                    run(() => (saved ? unsavePlace(placeId) : savePlace(placeId, note)), {
+                    run((id) => (saved ? unsavePlace(id) : savePlace(id, note)), {
                       affectsMap: true,
                     })
                   }
@@ -156,12 +198,12 @@ export default function PlaceDrawer({ placeId, userId, onClose, onChanged }: Pro
                 </button>
                 <button
                   disabled={isPending || checkedInToday}
-                  onClick={() => run(() => checkIn(placeId), { affectsMap: true })}
+                  onClick={() => run((id) => checkIn(id), { affectsMap: true })}
                   className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
                 >
                   {checkedInToday ? "✓ Checked in today" : "📍 I've been here"}
                 </button>
-                {details.myCheckins.length > 0 && (
+                {details && details.myCheckins.length > 0 && (
                   <p className="col-span-2 text-xs text-slate-500">
                     You&apos;ve checked in {details.myCheckins.length}{" "}
                     {details.myCheckins.length === 1 ? "time" : "times"}.
@@ -170,9 +212,9 @@ export default function PlaceDrawer({ placeId, userId, onClose, onChanged }: Pro
               </div>
             ) : (
               <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-                <Link href="/login" className="font-medium text-indigo-600">
+                <button onClick={onSignIn} className="font-medium text-indigo-600">
                   Sign in
-                </Link>{" "}
+                </button>{" "}
                 to save this place, check in, or leave a tip.
               </p>
             )}
@@ -190,10 +232,10 @@ export default function PlaceDrawer({ placeId, userId, onClose, onChanged }: Pro
                   placeholder="e.g. go at sunset, bring cash"
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-500"
                 />
-                {note !== (details.save?.note ?? "") && (
+                {note !== (details?.save?.note ?? "") && (
                   <button
                     disabled={isPending}
-                    onClick={() => run(() => savePlace(placeId, note), { success: "Note saved." })}
+                    onClick={() => run((id) => savePlace(id, note), { success: "Note saved." })}
                     className="mt-1 text-sm font-medium text-indigo-600 disabled:opacity-60"
                   >
                     Save note
@@ -215,8 +257,8 @@ export default function PlaceDrawer({ placeId, userId, onClose, onChanged }: Pro
                   onSubmit={(e) => {
                     e.preventDefault();
                     const text = tipText;
-                    run(async () => {
-                      const res = await addTip(placeId, text);
+                    run(async (id) => {
+                      const res = await addTip(id, text);
                       if (res.ok) setTipText("");
                       return res;
                     });
@@ -240,7 +282,7 @@ export default function PlaceDrawer({ placeId, userId, onClose, onChanged }: Pro
                 </form>
               )}
 
-              {details.tips.length === 0 ? (
+              {!details || details.tips.length === 0 ? (
                 <p className="mt-3 text-sm text-slate-500">No tips yet. Be the first!</p>
               ) : (
                 <ul className="mt-3 space-y-3">

@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
-import { addPlace } from "@/app/actions";
+import { useEffect, useState } from "react";
 import { osmKey, searchPlaces } from "@/lib/photon";
 import { createClient } from "@/lib/supabase/client";
 import type { SearchResult } from "@/lib/types";
@@ -11,19 +9,19 @@ type Existing = { id: string; people: number };
 
 type Props = {
   near: { lat: number; lng: number };
-  signedIn: boolean;
-  /** Called with the place to open once it exists in our database. */
-  onPick: (place: { id: string; lat: number; lng: number }) => void;
+  /** Lets the "Add a place" button focus the search box. */
+  inputRef?: React.Ref<HTMLInputElement>;
+  /** Called with the chosen result, plus its id if it's already on our map. */
+  onPick: (result: SearchResult, existingId?: string) => void;
 };
 
-export default function SearchBox({ near, signedIn, onPick }: Props) {
+export default function SearchBox({ near, inputRef, onPick }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [existing, setExisting] = useState<Record<string, Existing>>({});
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [isAdding, startAdding] = useTransition();
 
   // Search 300ms after the user stops typing; cancel stale requests.
   useEffect(() => {
@@ -62,31 +60,21 @@ export default function SearchBox({ near, signedIn, onPick }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
+  // Open the place in the drawer; it's only added to the map once someone saves it, checks in or tips.
   function choose(r: SearchResult) {
-    const known = existing[osmKey(r)];
-    if (known) {
-      finish({ id: known.id, lat: r.lat, lng: r.lng });
-      return;
-    }
-    startAdding(async () => {
-      const res = await addPlace(r);
-      if (res.ok) finish({ id: res.data.id, lat: r.lat, lng: r.lng });
-      else setError(res.error);
-    });
-  }
-
-  function finish(place: { id: string; lat: number; lng: number }) {
     setOpen(false);
     setQuery("");
     setResults([]);
-    onPick(place);
+    onPick(r, existing[osmKey(r)]?.id);
   }
 
-  const showList = open && query.trim().length >= 2;
+  const showHint = open && query.trim().length < 2;
+  const showList = open && !showHint;
 
   return (
     <div className="relative w-full">
       <input
+        ref={inputRef}
         type="search"
         value={query}
         onChange={(e) => {
@@ -96,9 +84,15 @@ export default function SearchBox({ near, signedIn, onPick }: Props) {
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
-        placeholder="Search places, cafés, landmarks…"
+        placeholder="Find a place: café, park, museum…"
         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-lg outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
       />
+
+      {showHint && (
+        <p className="absolute mt-2 w-full rounded-xl bg-white px-4 py-3 text-sm text-slate-600 shadow-xl">
+          Type a name, or tap any café, shop or park on the map.
+        </p>
+      )}
 
       {showList && (
         <div
@@ -118,9 +112,8 @@ export default function SearchBox({ near, signedIn, onPick }: Props) {
                 <li key={osmKey(r)} className="border-t border-slate-100 first:border-t-0">
                   <button
                     type="button"
-                    disabled={isAdding || (!known && !signedIn)}
                     onClick={() => choose(r)}
-                    className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 disabled:cursor-default disabled:hover:bg-white"
+                    className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-slate-900">{r.name}</span>
@@ -128,28 +121,16 @@ export default function SearchBox({ near, signedIn, onPick }: Props) {
                         {[r.category, r.address].filter(Boolean).join(" · ")}
                       </span>
                     </span>
-                    <span className="shrink-0 text-xs font-medium">
-                      {known ? (
-                        <span className="text-amber-600">
-                          {known.people > 0 ? `★ ${known.people} students` : "On the map"}
-                        </span>
-                      ) : signedIn ? (
-                        <span className="text-indigo-600">+ Add</span>
-                      ) : null}
-                    </span>
+                    {known && (
+                      <span className="shrink-0 text-xs font-medium text-amber-600">
+                        {known.people > 0 ? `★ ${known.people} students` : "On the map"}
+                      </span>
+                    )}
                   </button>
                 </li>
               );
             })}
           </ul>
-          {!signedIn && results.some((r) => !existing[osmKey(r)]) && (
-            <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
-              <Link href="/login" className="font-medium text-indigo-600">
-                Sign in
-              </Link>{" "}
-              to add new places to the map.
-            </p>
-          )}
         </div>
       )}
     </div>

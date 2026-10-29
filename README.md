@@ -46,6 +46,12 @@ The database is shared, so a change applies to everyone at once.
 ### Optional: local Docker database
 To try a risky database change privately, run Supabase locally (needs Docker Desktop): `npx supabase start`, then point `.env.local` at the "API URL" and "anon key" from `npx supabase status`. Local sign-in emails land at http://127.0.0.1:54324, and Studio is at http://127.0.0.1:54323. Switch `.env.local` back to the hosted values when you're done.
 
+## Using the site
+- **Find a place:** search by name with the box at the top (or "+ Add a place"), or tap any café, shop or park on the map.
+- **Add it to the map:** the place opens in a side panel. It's added to the shared map the first time someone saves it (☆ Save, with an optional private note), checks in ("I've been here") or posts a tip. Just looking at a place doesn't add it.
+- **Pins and heat:** every added place shows as a pin at any zoom (green = saved by you). A place glows on the heatmap once 3 different people have saved it or checked in.
+- **Browse without an account:** anyone can look around and read tips. Saving, checking in and tips need an account.
+
 ## Project layout
 ```
 app/
@@ -64,6 +70,7 @@ components/
 lib/
   config.ts              pilot city, map style
   photon.ts              place search
+  basemap.ts             turns a tapped base-map place into a place we can add
   lastView.ts            remembers where the map was left (per device)
   welcome.ts             remembers the welcome pop-up was closed (per device)
   supabase/              browser + server Supabase clients

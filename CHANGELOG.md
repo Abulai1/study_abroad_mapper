@@ -2,6 +2,18 @@
 
 A summary of the work done in each branch, newest first.
 
+## `9-improve-initial-ux` (2026-10-29)
+
+Made it much clearer how to find and add places.
+
+- **Tap places on the map:** tap any café, shop, park or museum on the base map to open it, even if nobody has added it yet. It's matched to the same OpenStreetMap place as search, so there are still no duplicates.
+- **Adding = saving:** removed the separate "+ Add" step that created empty pins. A place picked from search or the map opens straight away, marked "New to the map", and is added the first time someone saves it, checks in or posts a tip.
+- **"+ Add a place" button:** at the bottom center. It focuses the search box, which now says "Find a place: café, park, museum…" and hints that you can also tap the map.
+- **Buttons moved to the bottom center:** "+ Add a place", Heatmap and My saves now sit centered at the bottom (lifted slightly on phones to clear the map credits, which now collapse behind an ⓘ button).
+- **Pins at every zoom:** pins no longer disappear when you zoom out. They shrink to small dots, so new places are always visible even before they have heat.
+- **Sign-in from the place panel:** the "Sign in" link there now opens the welcome pop-up instead of a separate page.
+- Resolved the old known issue about slow search: Photon now responds in under a second.
+
 ## `8-create-a-landing-page` (2026-10-27 – 2026-10-29)
 
 Added a welcome pop-up so new visitors know what the site is and are prompted to create an account, and switched sign-in to email + password.
@@ -55,5 +67,5 @@ Set up the project and built the first feature: a shared map with a popularity h
 - Sample data: 26 real Barcelona places with fake student activity and tips
 
 ### Known issues
-- The free public Photon search server is currently slow (30–40 seconds per search)
+- ~~The free public Photon search server is currently slow (30–40 seconds per search)~~ Resolved by 2026-10-29 (under 1 second).
 - The map display has been checked in a browser, but the rest of the click-through (sign-in via email link, saving, check-ins, tips, reporting, search) still needs a manual test

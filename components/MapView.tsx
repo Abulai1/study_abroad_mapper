@@ -12,9 +12,10 @@ import Map, {
   type MapRef,
 } from "react-map-gl/maplibre";
 import type { FeatureCollection, Point } from "geojson";
+import { BASEMAP_POI_LAYERS, poiToCandidate } from "@/lib/basemap";
 import { DEFAULT_VIEW, MAP_STYLE_URL, PIN_MIN_ZOOM } from "@/lib/config";
 import { loadLastView, saveLastView } from "@/lib/lastView";
-import type { MapPlace } from "@/lib/types";
+import type { MapPlace, SearchResult, Selection } from "@/lib/types";
 
 // MapLibre can't find its worker once the app is bundled, so we serve a copy
 // from public/ (see the "copy-map-worker" script in package.json).
@@ -27,9 +28,11 @@ type Props = {
   mapRef: React.RefObject<MapRef | null>;
   places: MapPlace[];
   savedIds: Set<string>;
-  selectedId: string | null;
+  selection: Selection | null;
   showHeat: boolean;
   onSelect: (id: string | null) => void;
+  /** A base-map place (café, shop…) was tapped. */
+  onPickCandidate: (candidate: SearchResult) => void;
   onViewChange: (view: ViewInfo) => void;
 };
 
@@ -37,9 +40,10 @@ export default function MapView({
   mapRef,
   places,
   savedIds,
-  selectedId,
+  selection,
   showHeat,
   onSelect,
+  onPickCandidate,
   onViewChange,
 }: Props) {
   const [cursor, setCursor] = useState("");
@@ -59,6 +63,18 @@ export default function MapView({
     [places, savedIds],
   );
 
+  const selectedId = selection && "id" in selection ? selection.id : null;
+  const candidate = selection && "candidate" in selection ? selection.candidate : null;
+  const candidateData = useMemo<FeatureCollection<Point>>(
+    () => ({
+      type: "FeatureCollection",
+      features: candidate
+        ? [{ type: "Feature", geometry: { type: "Point", coordinates: [candidate.lng, candidate.lat] }, properties: {} }]
+        : [],
+    }),
+    [candidate],
+  );
+
   function reportView() {
     const map = mapRef.current;
     if (!map) return;
@@ -71,9 +87,16 @@ export default function MapView({
     });
   }
 
+  // Our pins are drawn above the base map, so they come first when both are under the tap.
   function handleClick(e: MapLayerMouseEvent) {
-    const id = e.features?.[0]?.properties?.id;
-    onSelect(typeof id === "string" ? id : null);
+    const feature = e.features?.[0];
+    if (feature?.layer.id === "place-pins") {
+      onSelect(feature.properties.id);
+      return;
+    }
+    const tapped = feature && poiToCandidate(feature);
+    if (tapped) onPickCandidate(tapped);
+    else onSelect(null);
   }
 
   return (
@@ -82,7 +105,9 @@ export default function MapView({
       initialViewState={initialView}
       mapStyle={MAP_STYLE_URL}
       style={{ width: "100%", height: "100%" }}
-      interactiveLayerIds={["place-pins"]}
+      interactiveLayerIds={["place-pins", ...BASEMAP_POI_LAYERS]}
+      // Map credits behind an ⓘ button so they don't run under the bottom buttons on phones.
+      attributionControl={{ compact: true }}
       cursor={cursor}
       onLoad={reportView}
       onMoveEnd={reportView}
@@ -119,18 +144,20 @@ export default function MapView({
           }}
         />
 
-        {/* Tappable pins once you're zoomed in to street level. */}
+        {/* Tappable pins at every zoom: small dots zoomed out, sized by popularity up close. */}
         <Layer
           id="place-pins"
           type="circle"
-          minzoom={PIN_MIN_ZOOM}
           paint={{
             "circle-color": ["case", ["get", "saved"], "#059669", "#4f46e5"],
-            "circle-radius": ["interpolate", ["linear"], ["get", "weight"], 0, 6, 25, 10],
+            "circle-radius": [
+              "interpolate", ["linear"], ["zoom"],
+              4, 3,
+              12, 5,
+              14, ["interpolate", ["linear"], ["get", "weight"], 0, 6, 25, 10],
+            ],
             "circle-stroke-color": "#ffffff",
-            "circle-stroke-width": 2,
-            "circle-opacity": ["interpolate", ["linear"], ["zoom"], PIN_MIN_ZOOM, 0.3, PIN_MIN_ZOOM + 1, 1],
-            "circle-stroke-opacity": ["interpolate", ["linear"], ["zoom"], PIN_MIN_ZOOM, 0.3, PIN_MIN_ZOOM + 1, 1],
+            "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 1, 12, 2],
           }}
         />
 
@@ -157,6 +184,20 @@ export default function MapView({
           paint={{
             "circle-radius": 15,
             "circle-color": "rgba(0,0,0,0)",
+            "circle-stroke-color": "#f59e0b",
+            "circle-stroke-width": 3,
+          }}
+        />
+      </Source>
+
+      {/* Ring around a place that isn't on our map yet (picked from search or the base map). */}
+      <Source id="candidate" type="geojson" data={candidateData}>
+        <Layer
+          id="candidate-selected"
+          type="circle"
+          paint={{
+            "circle-radius": 12,
+            "circle-color": "rgba(245,158,11,0.15)",
             "circle-stroke-color": "#f59e0b",
             "circle-stroke-width": 3,
           }}

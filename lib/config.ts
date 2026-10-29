@@ -9,5 +9,5 @@ export const DEFAULT_VIEW = {
 // Free vector basemap (OpenStreetMap data) – no API key needed.
 export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
-// Zoom level where the heatmap has faded out and pins take over.
+// Zoom level where the heatmap starts fading out so the pins stand out.
 export const PIN_MIN_ZOOM = 13;

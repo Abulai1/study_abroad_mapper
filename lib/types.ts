@@ -57,6 +57,12 @@ export type SearchResult = {
   lng: number;
 };
 
+/**
+ * What's open in the drawer: a place already on our map, or a "candidate" picked
+ * from search or the base map that only gets added once someone saves it, checks in or tips.
+ */
+export type Selection = { id: string } | { candidate: SearchResult };
+
 export type ActionResult<T = undefined> =
   | { ok: true; data: T }
   | { ok: false; error: string };
