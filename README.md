@@ -47,7 +47,8 @@ The database is shared, so a change applies to everyone at once.
 To try a risky database change privately, run Supabase locally (needs Docker Desktop): `npx supabase start`, then point `.env.local` at the "API URL" and "anon key" from `npx supabase status`. Local sign-in emails land at http://127.0.0.1:54324, and Studio is at http://127.0.0.1:54323. Switch `.env.local` back to the hosted values when you're done.
 
 ## Using the site
-- **Find a place:** search by name with the box at the top (or "+ Add a place"), or tap any café, shop or park on the map.
+- **Find a place:** search by name with the box at the top (or "+ Add a place"), or tap any café, shop or park on the map. While you search, the results also show as red pins on the map (which stays where you are), and you can tap a pin to open it. Results favor the area you're looking at. Search matches names, so "café" finds places with café in their name, not every café nearby.
+- **Can't find it?** At the bottom of every search, "Add it yourself" lets you drop your own pin: move the map so the pin sits on the spot, give it a name and type, and the address is filled in for you. If a place with a similar name is already pinned within about 100 m, you're asked "Is it one of these?" first. Custom pins are public, like every other place.
 - **Add it to the map:** the place opens in a side panel. It's added to the shared map the first time someone saves it (☆ Save, with an optional private note), checks in ("I've been here") or posts a tip. Just looking at a place doesn't add it.
 - **Pins and heat:** every added place shows as a pin at any zoom (green = saved by you). A place glows on the heatmap once 3 different people have saved it or checked in.
 - **Browse without an account:** anyone can look around and read tips. Saving, checking in and tips need an account.
@@ -65,6 +66,7 @@ components/
   SearchBox.tsx          Photon search → open or add a place
   PlaceDrawer.tsx        place details, tips, save, check in
   SavedPanel.tsx         "My saves" list
+  PinPlacer.tsx          drop a custom pin for places search can't find
   WelcomeModal.tsx       welcome pop-up for signed-out visitors (once per device)
   SignInForm.tsx         email + password sign in / create account (pop-up + /login)
 lib/

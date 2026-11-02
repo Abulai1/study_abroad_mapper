@@ -22,13 +22,15 @@ import type { MapPlace, SearchResult, Selection } from "@/lib/types";
 setWorkerUrl("/maplibre-gl-worker.mjs");
 
 export type Bounds ={ minLng: number; minLat: number; maxLng: number; maxLat: number };
-export type ViewInfo = { bounds: Bounds; center: { lat: number; lng: number } };
+export type ViewInfo = { bounds: Bounds; center: { lat: number; lng: number; zoom: number } };
 
 type Props = {
   mapRef: React.RefObject<MapRef | null>;
   places: MapPlace[];
   savedIds: Set<string>;
   selection: Selection | null;
+  /** Current search results, drawn as pins while the search box has text. */
+  searchResults: SearchResult[];
   showHeat: boolean;
   onSelect: (id: string | null) => void;
   /** A base-map place (café, shop…) was tapped. */
@@ -41,6 +43,7 @@ export default function MapView({
   places,
   savedIds,
   selection,
+  searchResults,
   showHeat,
   onSelect,
   onPickCandidate,
@@ -63,6 +66,18 @@ export default function MapView({
     [places, savedIds],
   );
 
+  const searchData = useMemo<FeatureCollection<Point>>(
+    () => ({
+      type: "FeatureCollection",
+      features: searchResults.map((r, index) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [r.lng, r.lat] },
+        properties: { index, name: r.name },
+      })),
+    }),
+    [searchResults],
+  );
+
   const selectedId = selection && "id" in selection ? selection.id : null;
   const candidate = selection && "candidate" in selection ? selection.candidate : null;
   const candidateData = useMemo<FeatureCollection<Point>>(
@@ -83,13 +98,17 @@ export default function MapView({
     saveLastView({ latitude: c.lat, longitude: c.lng, zoom: map.getZoom() });
     onViewChange({
       bounds: { minLng: b.getWest(), minLat: b.getSouth(), maxLng: b.getEast(), maxLat: b.getNorth() },
-      center: { lat: c.lat, lng: c.lng },
+      center: { lat: c.lat, lng: c.lng, zoom: map.getZoom() },
     });
   }
 
   // Our pins are drawn above the base map, so they come first when both are under the tap.
   function handleClick(e: MapLayerMouseEvent) {
     const feature = e.features?.[0];
+    if (feature?.layer.id === "search-pins") {
+      onPickCandidate(searchResults[feature.properties.index]);
+      return;
+    }
     if (feature?.layer.id === "place-pins") {
       onSelect(feature.properties.id);
       return;
@@ -105,7 +124,7 @@ export default function MapView({
       initialViewState={initialView}
       mapStyle={MAP_STYLE_URL}
       style={{ width: "100%", height: "100%" }}
-      interactiveLayerIds={["place-pins", ...BASEMAP_POI_LAYERS]}
+      interactiveLayerIds={["search-pins", "place-pins", ...BASEMAP_POI_LAYERS]}
       // Map credits behind an ⓘ button so they don't run under the bottom buttons on phones.
       attributionControl={{ compact: true }}
       cursor={cursor}
@@ -187,6 +206,33 @@ export default function MapView({
             "circle-stroke-color": "#f59e0b",
             "circle-stroke-width": 3,
           }}
+        />
+      </Source>
+
+      {/* Search results, drawn above our own pins while the search box has text. */}
+      <Source id="search-results" type="geojson" data={searchData}>
+        <Layer
+          id="search-pins"
+          type="circle"
+          paint={{
+            "circle-color": "#e11d48",
+            "circle-radius": 7,
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 2,
+          }}
+        />
+        <Layer
+          id="search-labels"
+          type="symbol"
+          layout={{
+            "text-field": ["get", "name"],
+            "text-font": ["Noto Sans Regular"],
+            "text-size": 12,
+            "text-offset": [0, 1.2],
+            "text-anchor": "top",
+            "text-optional": true,
+          }}
+          paint={{ "text-color": "#9f1239", "text-halo-color": "#ffffff", "text-halo-width": 1.5 }}
         />
       </Source>
 

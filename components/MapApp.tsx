@@ -6,9 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapRef } from "react-map-gl/maplibre";
 import { DEFAULT_VIEW } from "@/lib/config";
 import { createClient } from "@/lib/supabase/client";
-import type { MapPlace, SavedPlace, SearchResult, Selection } from "@/lib/types";
+import type { MapPlace, NewPlace, SavedPlace, SearchResult, Selection } from "@/lib/types";
 import { hasSeenWelcome, markWelcomeSeen } from "@/lib/welcome";
 import type { ViewInfo } from "./MapView";
+import PinPlacer from "./PinPlacer";
 import PlaceDrawer from "./PlaceDrawer";
 import SavedPanel from "./SavedPanel";
 import SearchBox from "./SearchBox";
@@ -34,9 +35,18 @@ export default function MapApp({ userId, userEmail }: Props) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [showHeat, setShowHeat] = useState(true);
   const [savedOpen, setSavedOpen] = useState(false);
-  const [center, setCenter] = useState({ lat: DEFAULT_VIEW.latitude, lng: DEFAULT_VIEW.longitude });
+  const [center, setCenter] = useState({
+    lat: DEFAULT_VIEW.latitude,
+    lng: DEFAULT_VIEW.longitude,
+    zoom: DEFAULT_VIEW.zoom,
+  });
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  // Bumped to reset the search box (and its pins) after a search pin is tapped on the map.
+  const [searchKey, setSearchKey] = useState(0);
   const [mapError, setMapError] = useState("");
   const [welcomeOpen, setWelcomeOpen] = useState(false);
+  // Dropping a custom pin for a place search can't find; holds the starting name.
+  const [pinName, setPinName] = useState<string | null>(null);
 
   // Welcome signed-out visitors, once per device. Checked after mount because
   // localStorage doesn't exist during server rendering.
@@ -124,6 +134,21 @@ export default function MapApp({ userId, userEmail }: Props) {
     setSelection(id ? { id } : { candidate: result });
   }
 
+  function startCustomPin(name: string) {
+    if (!userId) {
+      setWelcomeOpen(true);
+      return;
+    }
+    setSelection(null);
+    setSavedOpen(false);
+    setPinName(name);
+  }
+
+  function openCustomPin(place: NewPlace) {
+    setPinName(null);
+    setSelection({ candidate: place });
+  }
+
   function addAPlace() {
     setSelection(null);
     setSavedOpen(false);
@@ -142,19 +167,38 @@ export default function MapApp({ userId, userEmail }: Props) {
         places={places}
         savedIds={savedIds}
         selection={selection}
+        searchResults={searchResults}
         showHeat={showHeat}
         onSelect={(id) => {
           setSelection(id ? { id } : null);
           if (id) setSavedOpen(false);
         }}
-        onPickCandidate={(c) => openCandidate(c)}
+        onPickCandidate={(c) => {
+          if (pinName !== null) return;
+          if (searchResults.includes(c)) {
+            setSearchKey((k) => k + 1);
+            setSearchResults([]);
+          }
+          openCandidate(c);
+        }}
         onViewChange={handleViewChange}
       />
 
-      {/* Top bar: search + account */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-2 p-3 md:p-4">
+      {/* Top bar: search + account (hidden while dropping a pin) */}
+      <div
+        className={`pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-2 p-3 md:p-4 ${
+          pinName !== null ? "hidden" : ""
+        }`}
+      >
         <div className="pointer-events-auto w-full max-w-md">
-          <SearchBox near={center} inputRef={searchInputRef} onPick={openCandidate} />
+          <SearchBox
+            key={searchKey}
+            onResultsChange={setSearchResults}
+            near={center}
+            inputRef={searchInputRef}
+            onPick={openCandidate}
+            onAddCustom={startCustomPin}
+          />
         </div>
         <div className="pointer-events-auto ml-auto shrink-0">
           {userId ? (
@@ -177,7 +221,11 @@ export default function MapApp({ userId, userEmail }: Props) {
       </div>
 
       {/* Bottom-center controls, lifted on phones to clear the full-width map credits line. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-11 z-10 flex flex-col items-center gap-2 px-3 md:bottom-6">
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-11 z-10 flex flex-col items-center gap-2 px-3 md:bottom-6 ${
+          pinName !== null ? "hidden" : ""
+        }`}
+      >
         {mapError && (
           <p className="pointer-events-auto rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 shadow">
             {mapError}
@@ -228,6 +276,19 @@ export default function MapApp({ userId, userEmail }: Props) {
           }}
           onCreated={(id) => setSelection({ id })}
           onSignIn={() => setWelcomeOpen(true)}
+        />
+      )}
+
+      {pinName !== null && (
+        <PinPlacer
+          mapRef={mapRef}
+          initialName={pinName}
+          onCancel={() => setPinName(null)}
+          onOpenExisting={(place) => {
+            setPinName(null);
+            openPlace(place);
+          }}
+          onPlace={openCustomPin}
         />
       )}
 

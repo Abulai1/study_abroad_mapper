@@ -5,7 +5,7 @@
 // in the database double-checks that users only touch what they're allowed to.
 
 import { createClient } from "@/lib/supabase/server";
-import type { ActionResult, SearchResult } from "@/lib/types";
+import type { ActionResult, NewPlace } from "@/lib/types";
 
 async function getUserClient() {
   const supabase = await createClient();
@@ -17,26 +17,34 @@ async function getUserClient() {
 
 const NOT_SIGNED_IN = { ok: false, error: "Sign in to do that." } as const;
 
-/** Add a place from a search result, or return the existing one if it's already on the map. */
-export async function addPlace(result: SearchResult): Promise<ActionResult<{ id: string }>> {
+/**
+ * Add a place to the map. OpenStreetMap places that already exist return the existing
+ * one; custom pins (no OSM id) are always new.
+ */
+export async function addPlace(result: NewPlace): Promise<ActionResult<{ id: string }>> {
   const { supabase, user } = await getUserClient();
   if (!user) return NOT_SIGNED_IN;
 
+  const row = {
+    osm_type: result.osmType,
+    osm_id: result.osmId,
+    name: result.name.trim().slice(0, 200),
+    category: result.category?.slice(0, 50) ?? null,
+    address: result.address?.slice(0, 300) ?? null,
+    lat: result.lat,
+    lng: result.lng,
+    created_by: user.id,
+  };
+  if (!row.name) return { ok: false, error: "Give the place a name." };
+
+  if (result.osmType === null) {
+    const { data, error } = await supabase.from("places").insert(row).select("id").single();
+    return error ? { ok: false, error: error.message } : { ok: true, data: { id: data.id } };
+  }
+
   const { data: inserted, error } = await supabase
     .from("places")
-    .upsert(
-      {
-        osm_type: result.osmType,
-        osm_id: result.osmId,
-        name: result.name.slice(0, 200),
-        category: result.category?.slice(0, 50) ?? null,
-        address: result.address?.slice(0, 300) ?? null,
-        lat: result.lat,
-        lng: result.lng,
-        created_by: user.id,
-      },
-      { onConflict: "osm_type,osm_id", ignoreDuplicates: true },
-    )
+    .upsert(row, { onConflict: "osm_type,osm_id", ignoreDuplicates: true })
     .select("id");
   if (error) return { ok: false, error: error.message };
   if (inserted?.length) return { ok: true, data: { id: inserted[0].id } };

@@ -11,13 +11,13 @@ import {
   unsavePlace,
 } from "@/app/actions";
 import { createClient } from "@/lib/supabase/client";
-import type { ActionResult, Place, PlaceStats, SearchResult, Tip } from "@/lib/types";
+import type { ActionResult, NewPlace, Place, PlaceStats, Tip } from "@/lib/types";
 
 type Props = {
   /** A place already on our map… */
   placeId?: string;
   /** …or one picked from search / the base map that isn't on our map yet. */
-  candidate?: SearchResult;
+  candidate?: NewPlace;
   userId: string | null;
   onClose: () => void;
   /** Tell the map something changed (saves/check-ins affect pins and heat). */

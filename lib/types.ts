@@ -58,10 +58,17 @@ export type SearchResult = {
 };
 
 /**
- * What's open in the drawer: a place already on our map, or a "candidate" picked
- * from search or the base map that only gets added once someone saves it, checks in or tips.
+ * A place that isn't on our map yet: a search or base-map result, or a custom pin
+ * (no OpenStreetMap id) for places OpenStreetMap doesn't have.
  */
-export type Selection = { id: string } | { candidate: SearchResult };
+export type NewPlace = Omit<SearchResult, "osmType" | "osmId"> &
+  ({ osmType: SearchResult["osmType"]; osmId: number } | { osmType: null; osmId: null });
+
+/**
+ * What's open in the drawer: a place already on our map, or a "candidate" that only
+ * gets added once someone saves it, checks in or tips.
+ */
+export type Selection = { id: string } | { candidate: NewPlace };
 
 export type ActionResult<T = undefined> =
   | { ok: true; data: T }

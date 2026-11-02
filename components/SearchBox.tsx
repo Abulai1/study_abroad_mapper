@@ -8,14 +8,18 @@ import type { SearchResult } from "@/lib/types";
 type Existing = { id: string; people: number };
 
 type Props = {
-  near: { lat: number; lng: number };
+  near: { lat: number; lng: number; zoom?: number };
   /** Lets the "Add a place" button focus the search box. */
   inputRef?: React.Ref<HTMLInputElement>;
   /** Called with the chosen result, plus its id if it's already on our map. */
   onPick: (result: SearchResult, existingId?: string) => void;
+  /** "Can't find it?": start dropping a custom pin, named after what was typed. */
+  onAddCustom: (name: string) => void;
+  /** The current results, so the map can show them as pins. */
+  onResultsChange: (results: SearchResult[]) => void;
 };
 
-export default function SearchBox({ near, inputRef, onPick }: Props) {
+export default function SearchBox({ near, inputRef, onPick, onAddCustom, onResultsChange }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [existing, setExisting] = useState<Record<string, Existing>>({});
@@ -60,12 +64,25 @@ export default function SearchBox({ near, inputRef, onPick }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
+  // Results stay on the map as pins until the box is cleared or a place is picked.
+  useEffect(() => {
+    onResultsChange(results);
+  }, [results, onResultsChange]);
+
   // Open the place in the drawer; it's only added to the map once someone saves it, checks in or tips.
   function choose(r: SearchResult) {
     setOpen(false);
     setQuery("");
     setResults([]);
     onPick(r, existing[osmKey(r)]?.id);
+  }
+
+  function addCustom() {
+    const name = query.trim();
+    setOpen(false);
+    setQuery("");
+    setResults([]);
+    onAddCustom(name);
   }
 
   const showHint = open && query.trim().length < 2;
@@ -131,6 +148,16 @@ export default function SearchBox({ near, inputRef, onPick }: Props) {
               );
             })}
           </ul>
+          {!loading && (
+            <button
+              type="button"
+              onClick={addCustom}
+              className="block w-full border-t border-slate-100 px-4 py-3 text-left text-sm hover:bg-slate-50"
+            >
+              <span className="text-slate-600">Can&apos;t find &ldquo;{query.trim()}&rdquo;? </span>
+              <span className="font-medium text-indigo-600">Add it yourself</span>
+            </button>
+          )}
         </div>
       )}
     </div>

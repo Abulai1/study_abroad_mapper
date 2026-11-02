@@ -2,6 +2,16 @@
 
 A summary of the work done in each branch, newest first.
 
+## `11-handle-places-search-cant-find` (2026-11-02)
+
+Users can now add places that search can't find or that aren't in OpenStreetMap, and search results show as pins on the map.
+
+- **"Can't find it? Add it yourself":** a row at the bottom of every search result list. It starts a custom pin named after what you typed (sign-in required).
+- **Drop a pin:** a fixed pin sits in the middle of the screen; move the map so it's on the spot, give it a name and an optional type (café, bar, viewpoint, study spot…), and tap "Pin it here". The street address is filled in automatically. Like any new place, it's added to the shared map when someone first saves it, checks in or posts a tip.
+- **Duplicate warning:** if a place with a similar name is already pinned within about 100 m, you're asked "Is it one of these?" and can open the existing one instead.
+- **Search results on the map:** while you search, results show as red pins with names on the map, like Google or Apple Maps. The map doesn't move or zoom. Tap a pin to open that place. The pins stay while the search text is there and clear when you empty the box or pick a place. Search now returns up to 15 results (was 8), uses the map's zoom to keep results local, and drops duplicate results Photon sometimes returns.
+- Custom pins are always public. They're stored as places without an OpenStreetMap ID, which the database already supported, so no database changes were needed.
+
 ## `9-improve-initial-ux` (2026-10-29)
 
 Made it much clearer how to find and add places.
